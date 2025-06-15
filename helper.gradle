@@ -115,7 +115,7 @@ modrinth {
 }
 
 curseforge {
-    def projectID = findProperty('modrinth_id') ?: project.archives_base_name
+    def projectID = project.archives_base_name
     def slurper = new groovy.json.JsonSlurper()
     apiKey = new File(projectDir, "../CURSEFORGE_TOKEN")
     if (apiKey.exists()) {
