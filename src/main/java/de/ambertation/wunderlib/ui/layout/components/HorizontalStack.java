@@ -4,14 +4,13 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
-
 import de.ambertation.wunderlib.ui.layout.values.Size;
 import de.ambertation.wunderlib.ui.layout.values.Value;
 import de.ambertation.wunderlib.ui.vanilla.VanillaScrollerRenderer;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 
-@Environment(EnvType.CLIENT)
+@OnlyIn(Dist.CLIENT)
 public class HorizontalStack extends AbstractHorizontalStack<HorizontalStack> {
     public HorizontalStack(Value width, Value height) {
         super(width, height);

@@ -4,67 +4,78 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.network.ServerGamePacketListenerImpl;
 
-import net.fabricmc.api.EnvType;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
-import net.fabricmc.fabric.api.networking.v1.PacketSender;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.fabricmc.loader.api.FabricLoader;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.fml.loading.FMLEnvironment;
+import net.minecraftforge.network.NetworkDirection;
+import net.minecraftforge.network.NetworkRegistry;
+import net.minecraftforge.network.simple.SimpleChannel;
 
 public abstract class ServerBoundPacketHandler<D> {
-    protected ResourceLocation CHANNEL;
+    protected ResourceLocation CHANNEL_ID;
+    protected SimpleChannel CHANNEL;
 
-    public static <D, T extends ServerBoundPacketHandler<D>> T register(ResourceLocation channel, T packetHandler) {
-        packetHandler.CHANNEL = channel;
-        ServerPlayConnectionEvents.INIT.register((handler, server) -> {
-            ServerPlayNetworking.registerReceiver(
-                    handler,
-                    packetHandler.CHANNEL,
-                    packetHandler::receiveOnServer
-            );
-        });
+    private static final String PROTOCOL_VERSION = "1";
+    private static int NEXT_ID = 0;
 
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
-            ServerPlayNetworking.unregisterReceiver(handler, packetHandler.CHANNEL);
-        });
+    public static <D, T extends ServerBoundPacketHandler<D>> T register(ResourceLocation channelId, T handler) {
+        handler.CHANNEL_ID = channelId;
+        handler.CHANNEL = NetworkRegistry.newSimpleChannel(
+                channelId,
+                () -> PROTOCOL_VERSION,
+                PROTOCOL_VERSION::equals,
+                PROTOCOL_VERSION::equals
+        );
 
-        return packetHandler;
+        handler.CHANNEL
+                .messageBuilder(ServerBoundPacketHandler.ContentMessage.class, nextId(), NetworkDirection.PLAY_TO_SERVER)
+                .encoder((msg, buf) -> {
+                    @SuppressWarnings("unchecked")
+                    D payload = (D) msg.content;        // encode the payload you put in when sending
+                    handler.serializeOnClient(buf, payload);
+                })
+                .decoder(buf -> new ServerBoundPacketHandler.ContentMessage(handler.decodeOnServer(buf)))
+                .consumerMainThread((msg, ctxSup) -> {
+                    var ctx = ctxSup.get();             // <-- get the real context
+                    ServerPlayer player = ctx.getSender();
+                    if (player != null) {
+                        MinecraftServer server = player.getServer(); // or player.serverLevel().getServer()
+                        @SuppressWarnings("unchecked")
+                        D payload = (D) msg.content;
+                        handler.processOnGameThread(server, player, payload);
+                    }
+                    ctx.setPacketHandled(true);         // <-- mark handled on the context
+                })
+                .add();
+
+        handler.onRegister();
+        return handler;
     }
 
+    /** Client-side send helper. Safe no-op on dedicated servers. */
     public void sendToServer(D content) {
-        if (FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT) {
-            _sendToServer(content);
-        } else {
-            //
+        if (FMLEnvironment.dist == Dist.CLIENT && CHANNEL != null) {
+            CHANNEL.sendToServer(new ContentMessage(content));
         }
     }
 
-    private void _sendToServer(D content) {
-        FriendlyByteBuf buf = PacketByteBufs.create();
-        serializeOnClient(buf, content);
-        ClientPlayNetworking.send(CHANNEL, buf);
-    }
-
-    void receiveOnServer(
-            MinecraftServer server,
-            ServerPlayer player,
-            ServerGamePacketListenerImpl handler,
-            FriendlyByteBuf buf,
-            PacketSender responseSender
-    ) {
-        D content = deserializeOnServer(buf, player, responseSender);
-        server.execute(() -> processOnGameThread(server, player, content));
-    }
-
+    /** Write the client payload into the buffer (client thread). */
     protected abstract void serializeOnClient(FriendlyByteBuf buf, D content);
 
-    protected abstract D deserializeOnServer(FriendlyByteBuf buf, ServerPlayer player, PacketSender responseSender);
+    /** Read the payload from the buffer (netty decode thread). Keep it pure—no world access here. */
+    protected abstract D decodeOnServer(FriendlyByteBuf buf);
 
+    /** Run on the logical server thread. Do your gameplay work here. */
     protected abstract void processOnGameThread(MinecraftServer server, ServerPlayer player, D content);
 
-    protected void onRegister() {
+    /** Optional hook after registration. */
+    protected void onRegister() {}
+
+    /** Simple wrapper message carrying your generic content. */
+    protected static final class ContentMessage {
+        final Object content;
+        ContentMessage(Object content) { this.content = content; }
     }
+
+    private static synchronized int nextId() { return NEXT_ID++; }
 }

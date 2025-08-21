@@ -1,6 +1,6 @@
 package de.ambertation.wunderlib.math.sdf;
 
-import de.ambertation.wunderlib.WunderLib;
+import com.mojang.serialization.DataResult;
 import de.ambertation.wunderlib.math.Bounds;
 import de.ambertation.wunderlib.math.Float3;
 import de.ambertation.wunderlib.math.Matrix4;
@@ -9,15 +9,11 @@ import de.ambertation.wunderlib.math.sdf.interfaces.Transformable;
 import de.ambertation.wunderlib.math.sdf.shapes.*;
 
 import com.mojang.serialization.Codec;
-import net.minecraft.core.MappedRegistry;
-import net.minecraft.core.Registry;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.KeyDispatchDataCodec;
 
-import net.fabricmc.fabric.api.event.registry.FabricRegistryBuilder;
-import net.fabricmc.fabric.api.event.registry.RegistryAttribute;
-
 import java.util.Objects;
-import java.util.function.Function;
+
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
@@ -313,37 +309,34 @@ public abstract class SDF {
 
 
     //---------------------- SDF REGISTRY ----------------------
-    public static final MappedRegistry<Codec<? extends SDF>> SDF_REGISTRY = FabricRegistryBuilder
-            .<Codec<? extends SDF>>createSimple(null, WunderLib.ID("sdf"))
-            .attribute(RegistryAttribute.MODDED)
-            .buildAndRegister();
-
-    public static final Codec<SDF> CODEC = SDF_REGISTRY.byNameCodec()
-                                                       .dispatch((sdf) -> sdf.codec().codec(), Function.identity());
-
-    static void bootstrap(Registry<Codec<? extends SDF>> registry) {
-        register(registry, "union", SDFUnion.CODEC);
-        register(registry, "intersect", SDFIntersection.CODEC);
-        register(registry, "dif", SDFDifference.CODEC);
-        register(registry, "invert", SDFInvert.CODEC);
-
-        register(registry, "empty", Empty.CODEC);
-        register(registry, "sphere", Sphere.CODEC);
-        register(registry, "box", Box.CODEC);
-        register(registry, "cylinder", Cylinder.CODEC);
-        register(registry, "ellipsoid", Ellipsoid.CODEC);
+    public static Codec<SDF> codec2() {
+        var forgeReg = SdfRegistries.SDF_REGISTRY.get();
+        return ResourceLocation.CODEC.dispatch(
+                (SDF sdf) -> {
+                    var subCodec = (Codec<? extends SDF>) sdf.codec().codec();
+                    ResourceLocation id = forgeReg.getKey(subCodec);
+                    if (id == null) {
+                        throw new IllegalStateException("Unregistered SDF codec for: " + sdf.getClass().getName());
+                    }
+                    return id;
+                },
+                (ResourceLocation id) -> {
+                    Codec<? extends SDF> sub = forgeReg.getValue(id);
+                    if (sub == null) {
+                        return Codec.unit((SDF) null).flatXmap(
+                                __ -> DataResult.error(() -> "Unknown SDF type: " + id),
+                                __ -> DataResult.error(() -> "Unknown SDF type: " + id)
+                        );
+                    }
+                    return sub;
+                }
+        );
     }
 
-    static Codec<? extends SDF> register(
-            Registry<Codec<? extends SDF>> registry,
-            String name,
-            KeyDispatchDataCodec<? extends SDF> codec
-    ) {
-        return Registry.register(registry, WunderLib.ID(name), codec.codec());
-    }
+    /** Optional: keep a convenience alias with your previous name */
+    public static Codec<SDF> CODEC() { return codec2(); }
 
+    /** No-op now; kept for source compatibility if others call this. */
     @ApiStatus.Internal
-    public static void ensureStaticallyLoaded() {
-        bootstrap(SDF_REGISTRY);
-    }
+    public static void ensureStaticallyLoaded() {}
 }

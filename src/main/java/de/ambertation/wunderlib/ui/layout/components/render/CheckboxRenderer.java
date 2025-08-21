@@ -1,11 +1,10 @@
 package de.ambertation.wunderlib.ui.layout.components.render;
 
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
-
 import de.ambertation.wunderlib.ui.layout.components.AbstractVanillaComponentRenderer;
 import de.ambertation.wunderlib.ui.layout.components.Checkbox;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 
-@Environment(EnvType.CLIENT)
+@OnlyIn(Dist.CLIENT)
 public class CheckboxRenderer extends AbstractVanillaComponentRenderer<net.minecraft.client.gui.components.Checkbox, Checkbox> {
 }

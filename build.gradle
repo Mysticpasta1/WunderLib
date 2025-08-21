@@ -1,73 +1,153 @@
 plugins {
-    id 'idea'
+    id 'net.minecraftforge.gradle' version '[6.0.13, 6.2)'
+    id 'org.parchmentmc.librarian.forgegradle' version '1.+'
+    id 'org.spongepowered.mixin' version '0.7.+'
     id 'eclipse'
-    id 'fabric-loom' version "${loom_version}"
     id 'maven-publish'
 }
-print("build.gradle")
-apply from: "wunderlib.gradle"
 
-//from https://lowcarbrob.medium.com/android-pro-tip-generating-your-apps-changelog-from-git-inside-build-gradle-19a07533eec4
-String generateChangelog() {
-    println "Assembeling Changelog ..."
-    def lastTag = "git describe --tags --abbrev=0".execute().text.trim()
-    def gitLogCmd = "git log $lastTag..HEAD --oneline --no-merges --pretty=format:\"%s\"".execute().text.trim()
+archivesBaseName = project.archives_base_name
+version = project.mod_version
+group = project.maven_group
 
-    def features = ""
-    def fixes = ""
-    def changes = ""
-    gitLogCmd.eachLine { gitLine ->
-        def line = gitLine.substring(1, gitLine.length() - 1)
-        if (line.trim().startsWith("[")) {
-            def sline = line.split("]", 2)
-            if (sline.length == 2) {
-                def type = sline[0].trim().toLowerCase().substring(1)
-                def comment = sline[1].trim()
+// JENKINS STUFF! LEAVE THIS ALONE!
+if (System.getenv('BUILD_NUMBER') != null) {
+    version = "${version}." + System.getenv('BUILD_NUMBER')
+}
 
-                //filter issue links
-                if (comment.contains("(")) {
-                    def cline = comment.split("\\(", 2)
-                    if (cline.length == 2 && cline[1].contains("#")) {
-                        comment = cline[0].trim()
-                    }
-                }
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
-                if (type == "fix" || type == "fixes" || type == "fixed") {
-                    fixes += "- $comment \n"
-                } else if (type == "feature" || type == "features") {
-                    features += "- $comment \n"
-                } else if (type == "change" || type == "changes" || type == "changed") {
-                    changes += "- $comment \n"
-                } else {
-                    println "Unknown Type: $type ($line)"
+println "Java: ${System.getProperty 'java.version'}, JVM: ${System.getProperty 'java.vm.version'} (${System.getProperty 'java.vendor'}), Arch: ${System.getProperty 'os.arch'}"
+minecraft {
+    mappings channel: project.mappings, version: project.mappings_version
+
+    // Enable Access Transformer File
+    accessTransformer = rootProject.file('src/main/resources/META-INF/accesstransformer.cfg')
+
+    runs {
+        client {
+            workingDirectory project.file('run')
+
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            property 'forge.enabledGameTestNamespaces', 'examplemod'
+
+            arg "-mixin.config=wunderlib.mixins.json"
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
+
+            mods {
+                wunderlib {
+                    source sourceSets.main
                 }
             }
         }
 
-    }
-    def changelog = ""
-    if (!features.isEmpty()) {
-        changelog += "#### Features\n"
-        changelog += features.trim()
-        changelog += "\n\n"
-    }
-    if (!changes.isEmpty()) {
-        changelog += "#### Changes\n"
-        changelog += changes.trim()
-        changelog += "\n\n"
-    }
-    if (!fixes.isEmpty()) {
-        changelog += "#### Fixes\n"
-        changelog += fixes.trim()
-        changelog += "\n\n"
-    }
+        server {
+            workingDirectory project.file('run')
 
-    println "Changelog for $project.mod_version since $lastTag:\n$changelog"
-    return changelog
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            property 'forge.enabledGameTestNamespaces', 'examplemod'
+
+            arg "-mixin.config=wunderlib.mixins.json"
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
+
+            mods {
+                wunderlib {
+                    source sourceSets.main
+                }
+            }
+        }
+
+        gameTestServer {
+            workingDirectory project.file('run')
+
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            property 'forge.enabledGameTestNamespaces', 'examplemod'
+
+            arg "-mixin.config=wunderlib.mixins.json"
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
+
+            mods {
+                wunderlib {
+                    source sourceSets.main
+                }
+            }
+        }
+
+        data {
+            workingDirectory project.file('run')
+
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
+
+            args '--mod', 'wunderlib', '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
+
+            mods {
+                wunderlib {
+                    source sourceSets.main
+                }
+            }
+        }
+    }
 }
 
-task changelog() {
-    doLast {
-        new File(projectDir, "CHANGES.md").text = generateChangelog()
+sourceSets.main.resources {
+    srcDir 'src/generated/resources' }
+
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+}
+
+mixin {
+    add sourceSets.main, "wunderlib.refmap.json"
+    config "wunderlib.mixins.json"
+
+    debug.verbose = true
+}
+
+tasks.processResources {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+jar {
+    manifest {
+        attributes([
+                "Specification-Title"     : "wunderlib",
+                "Specification-Vendor"    : "Mysticpasta1",
+                "Specification-Version"   : "1",
+                "Implementation-Title"    : project.name,
+                "Implementation-Version"  : project.jar.archiveVersion,
+                "Implementation-Vendor"   : "Mysticpasta1",
+                "Implementation-Timestamp": new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+        ])
     }
+}
+
+jar.finalizedBy('reobfJar')
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifact jar
+        }
+    }
+    repositories {
+        maven {
+            url "file://${project.projectDir}/mcmodsrepo"
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
 }

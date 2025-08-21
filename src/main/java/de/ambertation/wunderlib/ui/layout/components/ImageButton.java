@@ -7,22 +7,22 @@ import de.ambertation.wunderlib.ui.layout.values.Value;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
 
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 
-@Environment(EnvType.CLIENT)
+@OnlyIn(Dist.CLIENT)
 public class ImageButton extends Image {
     public static final OnTooltip NO_TOOLTIP = (button, poseStack, i, j) -> {
     };
     public static final OnPress NO_ACTION = (button) -> {
     };
 
-    @Environment(EnvType.CLIENT)
+    @OnlyIn(Dist.CLIENT)
     public interface OnTooltip {
         void onTooltip(ImageButton button, GuiGraphics guiGraphics, int mouseX, int mouseY);
     }
 
-    @Environment(EnvType.CLIENT)
+    @OnlyIn(Dist.CLIENT)
     public interface OnPress {
         void onPress(ImageButton button);
     }

@@ -11,13 +11,13 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.events.ContainerEventHandler;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
-
 import java.util.List;
+
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 import org.jetbrains.annotations.Nullable;
 
-@Environment(EnvType.CLIENT)
+@OnlyIn(Dist.CLIENT)
 public class VerticalScroll<RS extends ScrollerRenderer> extends LayoutComponent<NullRenderer, VerticalScroll<RS>> implements ContainerEventHandler {
     protected LayoutComponent<?, ?> child;
     protected final RS scrollerRenderer;

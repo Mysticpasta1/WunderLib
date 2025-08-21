@@ -1,9 +1,9 @@
 package de.ambertation.wunderlib.ui.layout.values;
 
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 
-@Environment(EnvType.CLIENT)
+@OnlyIn(Dist.CLIENT)
 public enum Alignment {
     MIN, MAX, CENTER
 }

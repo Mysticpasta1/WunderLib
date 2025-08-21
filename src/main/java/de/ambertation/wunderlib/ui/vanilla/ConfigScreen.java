@@ -10,14 +10,14 @@ import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
-
 import java.util.LinkedList;
 import java.util.List;
+
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 import org.jetbrains.annotations.Nullable;
 
-@Environment(EnvType.CLIENT)
+@OnlyIn(Dist.CLIENT)
 public class ConfigScreen extends LayoutScreen {
     protected final List<ConfigFile> configFiles;
     protected final List<OnCheckboxChangeEvent> checkboxListeners;

@@ -18,14 +18,10 @@ repositories {
 ```
 dependencies {
     ...
-    modImplementation "com.github.quiqueck:WunderLib:${project.wunderlib_version}"
-    include "com.github.quiqueck:WunderLib:${project.wunderlib_version}"
+    modImplementation "com.github.Mysticpasta1:WunderLib:${project.wunderlib_version}"
+    include "com.github.Mysticpasta1:WunderLib:${project.wunderlib_version}"
 }
 ```
-
-The `include` line will bundle the lib with your mod, so users will not have to download it separately.
-You should also add a dependency to `fabirc.mod.json`. WunderLib uses Semantic versioning, so adding the dependency as
-follows should respect that and ensure that your mod is not loaded with an incompatible version of WunderLib:
 
 ```
 "depends": {
@@ -34,7 +30,7 @@ follows should respect that and ensure that your mod is not loaded with an incom
 }
 ```
 
-In this example `1.0.1` is the WunderLib Version you are building against.
+In this example `1.0.0` is the WunderLib Version you are building against.
 
 ## Building:
 

@@ -1,0 +1,28 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="MIT"
+
+[[mods]]
+modId="wunderlib"
+version="1.20.1-1.0.0"
+displayName="WunderLib"
+description="Another Utility Library"
+authors="Mysticpasta1, Quiqueck"
+credits="Quiqueck for the original idea and implementation."
+
+displayURL="https://github.com/Mysticpasta1/wunderlib"
+issueTrackerURL="https://github.com/Mysticpasta1/wunderlib/issues"
+
+[[dependencies.wunderlib]]
+modId="forge"
+mandatory=true
+versionRange="[47,)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.wunderlib]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1,1.20.2)"
+ordering="NONE"
+side="BOTH"

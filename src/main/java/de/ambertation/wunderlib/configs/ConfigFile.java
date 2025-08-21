@@ -1,27 +1,27 @@
 package de.ambertation.wunderlib.configs;
 
-
 import de.ambertation.wunderlib.WunderLib;
 import de.ambertation.wunderlib.utils.Version;
 
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
-import net.fabricmc.loader.api.FabricLoader;
-
 import com.google.gson.*;
+
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraftforge.fml.loading.FMLPaths;
+
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.*;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.function.Supplier;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 public class ConfigFile {
     public static final String MODIFY_VERSION = "modify_version";
     public static final String CREATE_VERSION = "create_version";
-    private static final Gson JSON_BUILDER = new GsonBuilder().setPrettyPrinting()
-                                                              .create();
+    private static final Gson JSON_BUILDER = new GsonBuilder().setPrettyPrinting().create();
+
     public final String category;
     private final File path;
     private final List<Value<?, ?>> knownValues = new LinkedList<>();
@@ -34,7 +34,7 @@ public class ConfigFile {
     }
 
     public ConfigFile(Version.ModVersionProvider versionProvider, String basePath, String category) {
-        final Path dir = FabricLoader.getInstance().getConfigDir().resolve(basePath);
+        final Path dir = FMLPaths.CONFIGDIR.get().resolve(basePath); // Forge path
         path = dir.resolve(category + ".json").toFile();
         this.category = basePath + "." + category;
         this.versionProvider = versionProvider;
@@ -116,9 +116,11 @@ public class ConfigFile {
         modified = false;
         if (path.exists()) {
             try (Reader reader = new FileReader(path)) {
-                this.root = JSON_BUILDER.fromJson(reader, JsonElement.class).getAsJsonObject();
+                JsonElement parsed = JSON_BUILDER.fromJson(reader, JsonElement.class);
+                this.root = (parsed == null || parsed.isJsonNull()) ? new JsonObject() : parsed.getAsJsonObject();
             } catch (Exception ex) {
                 WunderLib.LOGGER.error("Unable to open Config File at '{}'.", path.toString(), ex);
+                this.root = new JsonObject();
             }
         } else {
             this.root = new JsonObject();
@@ -169,7 +171,7 @@ public class ConfigFile {
      *
      * @return all stored values
      */
-    @Environment(EnvType.CLIENT)
+    @OnlyIn(Dist.CLIENT)
     public List<Value<?, ?>> getAllValues() {
         return knownValues;
     }
@@ -179,7 +181,7 @@ public class ConfigFile {
      *
      * @return All visible Values
      */
-    @Environment(EnvType.CLIENT)
+    @OnlyIn(Dist.CLIENT)
     public List<Value<?, ?>> getAllVisibleValues() {
         List<Value<?, ?>> values = new ArrayList<>();
         for (Value<?, ?> v : knownValues) {
@@ -196,7 +198,7 @@ public class ConfigFile {
      * @param group The group to filter for
      * @return All visible Values in the given group
      */
-    @Environment(EnvType.CLIENT)
+    @OnlyIn(Dist.CLIENT)
     public List<Value<?, ?>> getAllVisibleValues(Group group) {
         List<Value<?, ?>> values = new ArrayList<>();
         for (Value<?, ?> v : knownValues) {
@@ -215,7 +217,7 @@ public class ConfigFile {
      * @param configFiles an array of config files
      * @return All visible Values in the given group
      */
-    @Environment(EnvType.CLIENT)
+    @OnlyIn(Dist.CLIENT)
     public static List<Value<?, ?>> getAllVisibleValues(Group group, List<ConfigFile> configFiles) {
         final List<Value<?, ?>> values = new ArrayList<>();
         for (ConfigFile c : configFiles) {
@@ -229,13 +231,12 @@ public class ConfigFile {
         return values;
     }
 
-
     /**
      * Returns all groups that are used in this config file. The groups are sorted by their order.
      *
      * @return All stored groups
      */
-    @Environment(EnvType.CLIENT)
+    @OnlyIn(Dist.CLIENT)
     public List<Group> getAllGroups() {
         List<Group> groups = new ArrayList<>();
         for (Value<?, ?> v : knownValues) {
@@ -248,12 +249,12 @@ public class ConfigFile {
     }
 
     /**
-     * A static method that retuns all groups that are used in the given config files. The groups are sorted by their order.
+     * A static method that returns all groups that are used in the given config files. The groups are sorted by their order.
      *
      * @param configFiles an array of config files
      * @return All stored groups
      */
-    @Environment(EnvType.CLIENT)
+    @OnlyIn(Dist.CLIENT)
     public static List<Group> getAllGroups(List<ConfigFile> configFiles) {
         List<Group> groups = new ArrayList<>();
         for (ConfigFile c : configFiles) {
@@ -267,11 +268,11 @@ public class ConfigFile {
         return groups;
     }
 
-    @Environment(EnvType.CLIENT)
+    @OnlyIn(Dist.CLIENT)
     public static String getAllCategories(List<ConfigFile> configFiles) {
         StringBuilder sb = new StringBuilder();
         for (ConfigFile c : configFiles) {
-            if (!sb.isEmpty()) sb.append(",");
+            if (sb.length() > 0) sb.append(","); // fixed from sb.isEmpty()
             sb.append(c.category);
         }
         return sb.toString();
@@ -328,43 +329,46 @@ public class ConfigFile {
         @Nullable
         private ConfigFile parentFile;
 
-
         public Value(String path, String key, T defaultValue) {
-            this(new ConfigToken(path, key, defaultValue), false);
+            this(new ConfigToken<>(path, key, defaultValue), false);
         }
 
         public Value(String path, String key, T defaultValue, boolean isDeprecated) {
-            this(new ConfigToken(path, key, defaultValue), isDeprecated);
+            this(new ConfigToken<>(path, key, defaultValue), isDeprecated);
         }
 
-        public Value(ConfigToken token) {
+        public Value(ConfigToken<T> token) {
             this(token, false);
         }
 
-        public Value(ConfigToken token, boolean isDeprecated) {
-            this.deprecated = isDeprecated; //make sure this is set before get, otherwise deprecated values will get added to the config!
+        public Value(ConfigToken<T> token, boolean isDeprecated) {
+            this.deprecated = isDeprecated; // set before get so deprecated values do not get written
 
             this.token = token;
             this.group = null;
-            get(); //has the side effect of initializing the default value
+            get(); // side effect: initializes the default value into the file if missing (and not deprecated)
             registerValue(this);
         }
 
+        @SuppressWarnings("unchecked")
         public R hideInUI() {
             hiddenInUI = true;
             return (R) this;
         }
 
+        @SuppressWarnings("unchecked")
         public R setGroup(Group group) {
             this.group = group;
             return (R) this;
         }
 
+        @SuppressWarnings("unchecked")
         public R setOrder(int order) {
             this.order = order;
             return (R) this;
         }
 
+        @SuppressWarnings("unchecked")
         public R setDependency(BooleanValue value) {
             this.enabledInUI = value;
             return (R) this;
@@ -434,8 +438,8 @@ public class ConfigFile {
         protected abstract JsonElement convert(T value);
 
         public void set(T value) {
-            if (deprecated) throw new IllegalStateException("'" + token.path() + "." +
-                    token.key + "' is deprecated and can no-longer be used");
+            if (deprecated)
+                throw new IllegalStateException("'" + token.path() + "." + token.key + "' is deprecated and can no-longer be used");
             setValue(token, convert(value));
         }
 
@@ -450,8 +454,7 @@ public class ConfigFile {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof Value)) return false;
-            Value<?, ?> value = (Value<?, ?>) o;
+            if (!(o instanceof Value<?, ?> value)) return false;
             return token.equals(value.token);
         }
 
@@ -466,7 +469,7 @@ public class ConfigFile {
             super(path, key, defaultValue);
         }
 
-        protected IntValue(ConfigToken t) {
+        protected IntValue(ConfigToken<Integer> t) {
             super(t);
         }
 
@@ -474,7 +477,7 @@ public class ConfigFile {
             super(path, key, defaultValue, isDeprecated);
         }
 
-        protected IntValue(ConfigToken t, boolean isDeprecated) {
+        protected IntValue(ConfigToken<Integer> t, boolean isDeprecated) {
             super(t, isDeprecated);
         }
 
@@ -488,6 +491,7 @@ public class ConfigFile {
             return new JsonPrimitive(value);
         }
 
+        @Override
         public IntValue hideInUI() {
             return (IntValue) super.hideInUI();
         }
@@ -498,7 +502,7 @@ public class ConfigFile {
             super(path, key, defaultValue);
         }
 
-        protected FloatValue(ConfigToken t) {
+        protected FloatValue(ConfigToken<Float> t) {
             super(t);
         }
 
@@ -506,7 +510,7 @@ public class ConfigFile {
             super(path, key, defaultValue, isDeprecated);
         }
 
-        protected FloatValue(ConfigToken t, boolean isDeprecated) {
+        protected FloatValue(ConfigToken<Float> t, boolean isDeprecated) {
             super(t, isDeprecated);
         }
 
@@ -520,6 +524,7 @@ public class ConfigFile {
             return new JsonPrimitive(value);
         }
 
+        @Override
         public FloatValue hideInUI() {
             return (FloatValue) super.hideInUI();
         }
@@ -530,7 +535,7 @@ public class ConfigFile {
             super(path, key, defaultValue);
         }
 
-        protected BooleanValue(ConfigToken t) {
+        protected BooleanValue(ConfigToken<Boolean> t) {
             super(t);
         }
 
@@ -538,7 +543,7 @@ public class ConfigFile {
             super(path, key, defaultValue, isDeprecated);
         }
 
-        protected BooleanValue(ConfigToken t, boolean isDeprecated) {
+        protected BooleanValue(ConfigToken<Boolean> t, boolean isDeprecated) {
             super(t, isDeprecated);
         }
 
@@ -561,9 +566,8 @@ public class ConfigFile {
          * @return a new BooleanValue that is only enabled if the conditions are true
          */
         public BooleanValue and(BooleanValue... condition) {
-            final BooleanValue res = and(() -> Arrays.stream(condition)
-                                                     .map(c -> c.get())
-                                                     .reduce(true, (p, c) -> p && c));
+            final BooleanValue res = and(() ->
+                    Arrays.stream(condition).map(BooleanValue::get).reduce(true, (p, c) -> p && c));
             if (condition.length == 1) res.setDependency(condition[0]);
             return res;
         }
@@ -586,7 +590,8 @@ public class ConfigFile {
         }
 
         public BooleanValue or(BooleanValue... condition) {
-            return or(() -> Arrays.stream(condition).map(c -> c.get()).reduce(true, (p, c) -> p || c));
+            return or(() ->
+                    Arrays.stream(condition).map(BooleanValue::get).reduce(true, (p, c) -> p || c));
         }
 
         public BooleanValue or(Supplier<Boolean> condition) {
@@ -606,8 +611,9 @@ public class ConfigFile {
             return res;
         }
 
+        @Override
         public BooleanValue hideInUI() {
-            return (BooleanValue) super.hideInUI();
+            return super.hideInUI();
         }
     }
 }
